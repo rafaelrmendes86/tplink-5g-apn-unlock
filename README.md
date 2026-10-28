@@ -189,6 +189,11 @@ firmware.
   (`INCLUDE_LTE_BRIDGE_MODE=y`), same modem (Quectel RG520N). A runtime path to enable
   it on the 511v is under investigation; not included here yet.
 - This needs admin access to **your own** device; it is not a remote exploit.
+- **Config backup format** (`conf.bin`) is reverse-engineered in
+  [`config-backup-format.md`](config-backup-format.md): XML → LZSS → **standard DES-ECB**,
+  with `key = 748da50bf93e2dcf XOR ascii("%08x", devval)` and `devval` a per-device
+  datamodel value. A config Restore is accepted without a root shell, so this is the most
+  promising modification path on the hardened/shell-less builds — once `devval` is known.
 
 ## License
 
