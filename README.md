@@ -40,6 +40,52 @@ an RSA signature + OEM-ID, so you **cannot** reflash a modified image. Instead y
 the patched `mobile` from a writable tmpfs. It is therefore **not persistent** across
 reboots by itself — see *Persistence* below.
 
+## Newer firmware: a second lock (SFR network-personalization / `PH-NET PIN`)
+
+On **NX511v 1.26.0** the OTA also **updates the modem firmware** (observed: Quectel
+RG520N `...A04...` → `...A06...`), and that build arms a modem-level
+**network-personalization lock**. The symptom is different from the APN one: the SIM
+won't register **at all**.
+
+```
+AT+CPIN?      -> +CPIN: PH-NET PIN
+AT+QSIMLOCK?  -> +QSIMLOCK: "PN",<n>     (locked; no registration, "No Service")
+```
+
+The daemon does know how to clear it — it sends `AT+QSIMLOCK="PN","<password>"` — but
+only when it decides the inserted SIM is a *home* SIM. With a foreign SIM it leaves the
+lock on. The lock **re-arms on every cold boot**.
+
+You don't have to guess the code (and you shouldn't — `"PN"` unlock attempts are
+limited). The password is a **constant in your own `mobile` binary**, sitting right next
+to the `AT+QSIMLOCK=` format strings. `find_perso_pw.py` disassembles your binary, finds
+the `AT+QSIMLOCK="PN","%s"` site and the string the code feeds as that `%s`, and prints
+the exact command:
+
+```sh
+python3 find_perso_pw.py mobile
+# -> perso unlock password : "123456"      (the observed SFR default; verify your own)
+# -> /usr/sbin/mobile_cli send_at_cmd 'AT+QSIMLOCK="PN","123456"'
+```
+
+Run it on the device (the daemon relays the AT; raw writes to the modem node are
+blocked), or use `unlock_perso.sh`:
+
+```sh
+sh unlock_perso.sh                 # uses the default, or pass your own: sh unlock_perso.sh <PW>
+# AT+QSIMLOCK? now returns OK with no "PN" line, AT+CPIN? -> READY, and it registers.
+```
+
+Sending the **correct** key does not consume an unlock attempt. Once cleared, the modem
+registers on your operator — and, notably, on **1.26.0 the perso unlock alone was enough
+to get data**: the stock daemon's configured dial profile (APN `internet`) then connects
+on its own, so the `.rodata` APN-attach patch above was **not needed** on that build.
+The two locks are independent; apply whichever your box actually has.
+
+Because the lock re-arms every cold boot and there is no on-device boot hook (see
+*Persistence*), re-run the unlock after each power-on — a one-liner from the config
+partition, or an external watchdog on your LAN that re-runs it when it sees `"PN"` again.
+
 ## Requirements
 
 - Root shell on the router (see *Getting a shell*).
@@ -117,11 +163,14 @@ firmware.
 
 - **End-to-end validated on NX511v 1.10.0 Build 240419** (SFR): patched, deployed and
   confirmed with a real data session (ping 0% loss).
-- **NX511v 1.26.0 Build 250807 — in progress:** the pattern matcher already auto-finds
-  the same three sites (at *different* offsets than 1.10.0) and produces a clean 20-byte
-  patch — which is the whole point of matching by code-pattern instead of hardcoding
-  offsets (it survives firmware updates). On-device validation on 1.26.0 is underway; the
-  static result is solid but it has **not** been run on a live 1.26.0 box yet.
+- **NX511v 1.26.0 Build 250807 — validated on-device.** The pattern matcher auto-finds
+  the same three APN sites at *different* offsets than 1.10.0 (the point of matching by
+  code-pattern, not fixed offsets). But the actual blocker on 1.26.0 turned out to be the
+  **network-personalization lock** above, not the attach APN: once the modem was
+  perso-unlocked (`find_perso_pw.py` + `AT+QSIMLOCK="PN",…`), it registered and the stock
+  dial profile carried data (real IP, ping 0% loss, LTE + 5G NR n78) — the APN patch was
+  not required on this build. So on 1.26.0 reach for `find_perso_pw.py`/`unlock_perso.sh`
+  first; keep the APN patch for builds where the attach APN is the thing in your way.
 - The same functions (`GetInitialAttachApn` / `SetInitialAttachApn` /
   `SyncInitialAttachProfileToModem`) are also present in **NX510v 1.2.0**. Always run the
   dry-run on your own binary first.
