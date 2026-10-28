@@ -1,0 +1,19 @@
+# NEVER commit vendor firmware or binaries (copyright) or any personal data.
+*.bin
+*.zip
+*.img
+*.ubifs
+*.squashfs
+mobile
+mobile.patched
+mobile.new
+mobile.*
+rootfs/
+fw_extract/
+ubi_images/
+*.rtpass
+.rtpass
+# scratch
+*.log
+__pycache__/
+*.pyc
