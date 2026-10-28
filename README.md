@@ -94,10 +94,43 @@ partition, or an external watchdog on your LAN that re-runs it when it sees `"PN
   `wget`/`curl`/`scp`), but `tftp` (client) is present — run a small TFTP server on
   your PC.
 
+## Getting in — valid `admin` credentials via TR-069 (the part that unlocks SSH)
+
+On an ISP-locked unit you often **don't know the device's `admin` password**, and the web
+UI won't let you set it — so SSH (Dropbear *is* listening) rejects every login and you're
+stuck. The way through is **TR-069 / CWMP**: point the router at **your own ACS** and use
+it to *write* the `admin` (super-admin) account password. Then that password is valid for
+SSH.
+
+This technique is **not mine** — it's the TP-Link/Aginet "jailbreak" by
+**[OscarVanL](https://gist.github.com/OscarVanL)**, as refined in
+**[ataniazov's gist](https://gist.github.com/ataniazov/b774f8b58deb6a02f07c7327ca67c651)**
+(written for the EX230v / VX230v / EX530v). What's below is that method **adapted to the
+NX511v**; credit for the approach goes to them.
+
+1. **Run GenieACS on a box on the same LAN** (Docker: MongoDB + `genieacs-cwmp` on
+   `:7547` + `genieacs-ui` on `:3000`; the UI default login is `admin:admin`).
+2. **Point the router's ACS at your server.** On the NX511v this is exposed directly in
+   **System Tools → CWMP Settings** (no `$.loadMain("/cwmp.htm")` console trick needed):
+   enable CWMP + periodic Inform, set **ACS URL = `http://<your-LAN-ip>:7547`**, clear the
+   ACS username/password, set the TR-069 interface to **LAN**, and disable connection-
+   request auth. **Screenshot the original values first** so you can restore them.
+3. The device shows up in GenieACS → **Devices** (online). Refresh
+   `InternetGatewayDevice.User.1` / `User.2`; the user named **`admin` is the super-admin**.
+   **Set its `Password`** (≥6 chars, ≥2 character classes) and commit the
+   `setParameterValues`.
+   > On this SFR build most `setParameterValues` are refused (`cwmp.9001 Request denied`),
+   > but writing the **User password** goes through — that's the one you need.
+4. You now have a known `admin` password. It works for **SSH** (below) **and** for the
+   hidden **`/superadmin`** web page (band/cell lock, etc.).
+5. **Clean up** when done: restore the saved CWMP settings or just disable CWMP + Inform,
+   and tear down GenieACS — otherwise the ISP's ACS may reach the box again (or reset the
+   password you set). Right to repair: your device, your SIM, your data plan.
+
 ## Getting a shell
 
-Public research on this family (e.g. the OpenWrt NX510v thread) reports **no working
-root shell** — UART is password-gated, U-Boot autoboot is blocked (`bootdelay=0`), EDL is
+With a valid `admin` password (above), the rest needs no exploit. Public research on this
+family (e.g. the OpenWrt NX510v thread) reports **no working root shell** — UART is password-gated, U-Boot autoboot is blocked (`bootdelay=0`), EDL is
 a dead end (SPI NAND), and on the hardened builds the patched Dropbear rejects shell
 channels. But on the **NX511v up to 1.26.0** there is a simple, no-exploit path in with
 nothing more than **your own admin login**:
