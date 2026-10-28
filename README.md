@@ -96,14 +96,45 @@ partition, or an external watchdog on your LAN that re-runs it when it sees `"PN
 
 ## Getting a shell
 
-SSH to the router as `admin` (your admin password), then at the TP-Link CLI type:
+Public research on this family (e.g. the OpenWrt NX510v thread) reports **no working
+root shell** — UART is password-gated, U-Boot autoboot is blocked (`bootdelay=0`), EDL is
+a dead end (SPI NAND), and on the hardened builds the patched Dropbear rejects shell
+channels. But on the **NX511v up to 1.26.0** there is a simple, no-exploit path in with
+nothing more than **your own admin login**:
 
-```
-sh
-```
+1. **SSH in as `admin`** with the router's admin password (the one you set in the web UI):
 
-That drops to a busybox **root** shell (the CLI command `sh` → `doFshell`). `telnetd`
-and a serial console are also available on these builds.
+   ```sh
+   ssh admin@<router-ip>
+   ```
+
+   You don't land in a normal shell — you land in the **TP-Link CLI** (prompt
+   `TP-Link(conf)#`). This is the same restricted CLI the ISP ships; most debug commands
+   are gone.
+
+2. **Escape the CLI to a root shell** — at the `TP-Link(conf)#` prompt, type:
+
+   ```
+   sh
+   ```
+
+   The CLI's `sh` command is wired to an internal `doFshell` handler that execs
+   **busybox as root** (the `admin` account is UID 0 in `passwd.bak`). You drop straight to
+   a prompt like `/var/tmp/dropbear #`, running as **root** — full filesystem, `mobile_cli`,
+   `iptables`, `/proc/<pid>/mem`, everything. `telnetd` is also started unconditionally on
+   these builds, and the UART serial console exists (both land in the same CLI).
+
+That's the whole trick: **admin SSH → CLI → `sh` → root**. No signature bypass, no
+soldering — it's your device and your admin password, and the CLI simply still has the
+`doFshell` escape compiled in.
+
+> **This escape is removed on the hardened builds.** The community reports that on
+> **NX510v 1.3.0** (and, by generation, expect the same on **NX511v 1.30.0**) the CLI no
+> longer escapes to `/bin/sh`, the debug/factory commands are stripped, and the patched
+> Dropbear refuses shell/exec channels (port-forwarding only). So get your shell — and
+> stage any persistence — while you're on a pre-hardening build, and **don't flash a newer
+> one** if you want to keep this access (downgrade is version-check blocked and there is no
+> documented recovery mode).
 
 ## Steps
 
