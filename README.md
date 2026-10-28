@@ -171,6 +171,14 @@ firmware.
   dial profile carried data (real IP, ping 0% loss, LTE + 5G NR n78) — the APN patch was
   not required on this build. So on 1.26.0 reach for `find_perso_pw.py`/`unlock_perso.sh`
   first; keep the APN patch for builds where the attach APN is the thing in your way.
+- **Encrypted firmware on newer builds.** Images up to 1.26.0 are plaintext (UBI +
+  squashfs, so you can unpack the `.bin` and pull `mobile` out of it). The **1.30.0**
+  OTA image (Build 260320) is **fully encrypted** — uniform ~8.0 bits/byte entropy end to
+  end, no UBI/squashfs/xz magic — so you can't unpack the `.bin` offline without the
+  (bootloader-held) key. This does **not** block anything here: extract `mobile` from a
+  **running** device instead (`tftp -p -l /usr/sbin/mobile -r mobile <PC> 69xx`) and run
+  the tools on that. Only confirmed-usable on the firmware you can actually get a root
+  shell on; a blind flash to an encrypted build risks losing that shell with no downgrade.
 - The same functions (`GetInitialAttachApn` / `SetInitialAttachApn` /
   `SyncInitialAttachProfileToModem`) are also present in **NX510v 1.2.0**. Always run the
   dry-run on your own binary first.
