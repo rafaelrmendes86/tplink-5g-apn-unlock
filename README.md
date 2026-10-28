@@ -115,12 +115,15 @@ firmware.
 
 ## Notes & limits
 
-- Tested on **NX511v 1.10.0 Build 240419** (SFR) with a real data session (ping 0% loss).
-  **Also confirmed on NX511v 1.26.0 Build 250807**: the pattern matcher auto-found the
-  same three sites at *different* offsets and produced a clean 20-byte patch — which is
-  the whole point of matching by code-pattern instead of hardcoding offsets (it survives
-  firmware updates). The same functions (`GetInitialAttachApn` / `SetInitialAttachApn` /
-  `SyncInitialAttachProfileToModem`) are also present in NX510v 1.2.0. Always run the
+- **End-to-end validated on NX511v 1.10.0 Build 240419** (SFR): patched, deployed and
+  confirmed with a real data session (ping 0% loss).
+- **NX511v 1.26.0 Build 250807 — in progress:** the pattern matcher already auto-finds
+  the same three sites (at *different* offsets than 1.10.0) and produces a clean 20-byte
+  patch — which is the whole point of matching by code-pattern instead of hardcoding
+  offsets (it survives firmware updates). On-device validation on 1.26.0 is underway; the
+  static result is solid but it has **not** been run on a live 1.26.0 box yet.
+- The same functions (`GetInitialAttachApn` / `SetInitialAttachApn` /
+  `SyncInitialAttachProfileToModem`) are also present in **NX510v 1.2.0**. Always run the
   dry-run on your own binary first.
 - Your data IP may be **CGNAT** (100.64.0.0/10). That's your operator's doing, not this
   patch.
