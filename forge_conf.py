@@ -8,7 +8,11 @@
 import os, sys, ctypes, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lzss import lzss_decompress
-from lzss_compress import lzss_compress
+# Real match-finding compressor (~0.16x) by default; --literals falls back to the
+# all-literals one (~1.125x). Both produce a stream the device accepts.
+from lzss_compress_real import lzss_compress as _lzss_real
+from lzss_compress import lzss_compress as _lzss_lit
+lzss_compress = _lzss_real
 
 LIBCRYPTO = os.environ.get("LIBCRYPTO", "libcrypto.so.3")
 LIB = ctypes.CDLL(LIBCRYPTO)
@@ -52,11 +56,14 @@ def verify(conf: bytes, key: bytes):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        sys.exit("usage: forge_conf.py xml_in conf_out (--key <hex> | --devval <int>)")
-    xml = open(sys.argv[1], "rb").read()
-    key = bytes.fromhex(sys.argv[4]) if sys.argv[3] == "--key" else key_from_devval(int(sys.argv[4], 0))
+    argv = [a for a in sys.argv[1:] if a != "--literals"]
+    if "--literals" in sys.argv:
+        lzss_compress = _lzss_lit
+    if len(argv) < 4:
+        sys.exit("usage: forge_conf.py [--literals] xml_in conf_out (--key <hex> | --devval <int>)")
+    xml = open(argv[0], "rb").read()
+    key = bytes.fromhex(argv[3]) if argv[2] == "--key" else key_from_devval(int(argv[3], 0))
     conf, H, C = forge(xml, key)
-    open(sys.argv[2], "wb").write(conf)
+    open(argv[1], "wb").write(conf)
     ok, xml2 = verify(conf, key)
-    sys.stderr.write(f"wrote {sys.argv[2]}  bytes={len(conf)}  C={len(C)}  digest_ok={ok}  roundtrip={xml2 == xml}\n")
+    sys.stderr.write(f"wrote {argv[1]}  bytes={len(conf)}  C={len(C)}  digest_ok={ok}  roundtrip={xml2 == xml}\n")

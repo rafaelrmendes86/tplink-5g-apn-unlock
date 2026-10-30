@@ -79,7 +79,11 @@ Because there is no secret, **a valid `conf.bin` is forgeable** with only `DEVVA
 ## Decrypting / forging (scripts in this repo)
 
 - `lzss.py` — the LZSS decompressor (port of `cen_uncompressBuff`).
-- `lzss_compress.py` — an LZSS compressor compatible with it (all-literals; ~1.125× size).
+- `lzss_compress.py` — a minimal all-literals compressor compatible with it (~1.125× size).
+- `lzss_compress_real.py` — the real match-finding compressor (~0.16×, i.e. 114 KB XML →
+  ~18.5 KB), ported from [`sta-c0000/tpconf_bin_xml`](https://github.com/sta-c0000/tpconf_bin_xml)
+  with the size field pinned little-endian. Same on-wire scheme as `lzss.py`; `forge_conf.py`
+  uses it by default (`--literals` selects the all-literals one).
 - `decrypt_config.py conf.bin (--key <hex> | --devval <int>)` — `conf.bin` → XML.
 - `forge_conf.py xml_in conf_out (--key <hex> | --devval <int>)` — edited XML → `conf.bin`,
   and self-verifies the digest + round-trip.
@@ -93,9 +97,16 @@ plaintext = H + C                           # then zero-pad to a multiple of 8
 conf.bin  = DES_ECB_encrypt(plaintext, key) # standard DES, no IV
 ```
 
-> **Size caveat:** the all-literals compressor produces a ~1.125× blob (e.g. 114 KB XML →
-> 128 KB), far larger than the vendor's real-match output (~19 KB). If a device rejects an
-> oversized restore, implement `cen_compressBuff`'s match search to shrink it.
+> **Size note:** the all-literals compressor produces a ~1.125× blob (e.g. 114 KB XML →
+> 128 KB). That size was **accepted on-device** (a forged restore persisted after reboot),
+> so match-finding is not required for correctness. `lzss_compress_real.py` nonetheless
+> produces a ~18.5 KB stream — matching/beating the vendor's own output — if you want a
+> compact file; it decodes back to the identical XML and to a real device backup's XML.
+
+The forge → restore → reboot → persist cycle is **hardware-validated** on an NX511v (1.26.0):
+editing a static field (e.g. the Wi-Fi SSID, or the ISP operator→APN table) and restoring the
+forged `conf.bin` through the stock web UI survives a reboot. Note that a few fields are *live*
+(rewritten by a daemon at runtime, e.g. the active cellular APN) and cannot be set this way.
 
 ## Brute-forcing `DEVVAL` (two-stage oracle)
 
